@@ -1,0 +1,9 @@
+logger:
+  train_log_path: "train_results.log"
+
+taxi_env:
+  episode_n: 1000
+  tr_len: 1000
+  gamma: 0.99
+  alpha: 0.4
+  avg_wsize: 100
