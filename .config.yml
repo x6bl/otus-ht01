@@ -1,6 +1,9 @@
 logger:
   train_log_path: "train_results.log"
 
+agent:
+  qf_save_to: "agent_qf"
+
 taxi_env:
   episode_n: 1000
   tr_len: 1000
