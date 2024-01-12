@@ -40,6 +40,7 @@ def main() -> None:
     ar = agent.get_rewards_ma(n = ma_p)
     # draw rewards plot
     avx = np.arange(ma_p - 1, episode_n)
+    plt.figure(figsize=(12.8, 8))
     plt.plot(tr, color='blue', label='Rewards')
     if ar is not None:
         plt.plot(avx, ar[ma_p-1:], color='red', label=f'Rewards Moving Average (period={ma_p})')
