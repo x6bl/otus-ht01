@@ -1,7 +1,6 @@
 import gymnasium as gym
-import matplotlib.pyplot as plt
+from logging import Logger
 import numpy as np
-import yaml
 from typing import Callable
 
 
@@ -10,14 +9,16 @@ def get_egreedy_action(
     e: float,
     action_n: int
 ) -> int:
+    # if e==0 return greedy action (maximum q-value)
     max_action_idx = np.argmax(q_values).item()
     if e == 0:
         return max_action_idx
+    # else return epsilon-greedy action
     policy = np.ones(action_n) * (e / action_n)
     policy[max_action_idx] += 1 - e
     return np.random.choice(np.arange(action_n), p=policy).item()
 
-type LearningFunc = Callable[[gym.Env, np.ndarray, int, int, float, float], np.ndarray]
+LearningFunc = Callable[[gym.Env, np.ndarray, int, int, float, float], np.ndarray]
 
 def SARSA(
     env: gym.Env,
@@ -67,17 +68,6 @@ def Q_learning(
                 break
     return total_rewards
 
-def avg_reward(
-    r: np.ndarray,
-    n: int = 100
-) -> np.ndarray:
-    size = r.shape[0]
-    res = np.zeros(size)
-    if n <= size:
-        for i in range(n,size+1):
-            res[i-1] = np.average(r[i-n:i])
-    return res
-
 class LearningAlgorithm:
     learning_func: dict[str, LearningFunc] = {}
 
@@ -94,8 +84,10 @@ class LearningAlgorithm:
         return self.learning_func[algorithm]
 
 class Agent:
-    def __init__(self, env: gym.Env) -> None:
+    def __init__(self, env: gym.Env, logger: Logger) -> None:
+        # init the agent
         self.env = env
+        self.log = logger
         self.st_n = env.observation_space.n.item()
         self.ac_n = env.action_space.n.item()
         self.learning_algorithm = LearningAlgorithm()
@@ -109,19 +101,77 @@ class Agent:
             gamma: float = 0.99,
             alpha: float = 0.1
     ) -> np.ndarray:
+        """Learn the agent on :attr:`env` environment with ``algorithm`` learning algorithm (Q-learning (``algorithm='qlearning'``)
+        and SARSA (``algorithm='sarsa'``) algorithms are implemented, default is Q-learning"""
+        # get learning function
         f = self.learning_algorithm.get_learning_function(algorithm)
+        # learn the agent
+        self.log.info(f'starting agent learning with {algorithm} algorithm')
         self.total_rewards = f(self.env, self.Q, episode_n = episode_n, t_len = t_len, gamma = gamma, alpha = alpha)
+        # set trained flag to true
         self._is_trained = True
+        # average reward for last 100 episodes
+        rmean = np.mean(self.total_rewards[episode_n-100:]).item()
+        self.log.info(f'agent learning done, average reward for the last 100 episodes is {rmean}')
         return self.total_rewards
 
-    def act(self) -> None:
-        pass
+    def act(self, episode_n: int = 100) -> float | None:
+        # if agent is not trained return None
+        if not self._is_trained:
+            return None
+        # init rewards array
+        rewards = np.zeros(episode_n)
+        Q = self.Q
+        # run the agent for episode_n episodes
+        for i in range(episode_n):
+            # reset environment
+            s = self.env.reset()[0]
+            # go through episode
+            while (True):
+                # get greedy action (e = 0)
+                a = get_egreedy_action(Q[s], 0, self.ac_n)
+                # do step
+                s, r, term, trun, _ = self.env.step(a)
+                # append episode reward
+                rewards[i] += r
+                if term or trun:
+                    break
+        # return average reward
+        return np.mean(rewards).item()
 
     def reset(self) -> None:
+        # reset the agent
         self.total_rewards = None
         self.Q = np.zeros((self.st_n, self.ac_n))
         self._is_trained = False
 
     def is_trained(self) -> bool:
+        return self._is_trained
+
+    def get_rewards_ma(self, n: int = 100) -> np.ndarray | None:
+        # calculate the moving average of rewards with period n
+        if self.total_rewards is None:
+            return None
+        size = self.total_rewards.shape[0]
+        rewards_ma = np.zeros(size)
+        if n <= size:
+            for i in range(n,size+1):
+                rewards_ma[i-1] = np.mean(self.total_rewards[i-n:i])
+        return rewards_ma
+
+    def save(self, filename: str) -> None:
+        # save agent's Q-function to file
+        np.save(filename, self.Q)
+        self.log.info(f'save agent\'s Q-function to {filename}.npy')
+
+    def load(self, filename: str) -> bool:
+        # load agent's Q-function from file
+        try:
+            self.log.info(f'loading agent\'s Q-function from file {filename}.npy')
+            self.Q = np.load(f'{filename}.npy')
+        except IOError:
+            self.log.error(f'{filename}.npy not found or corrupted')
+            return False
+        self._is_trained = True
         return self._is_trained
 

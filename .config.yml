@@ -1,12 +1,13 @@
 logger:
   train_log_path: "train_results.log"
+  run_log_path: "run_results.log"
 
 agent:
-  qf_save_to: "agent_qf"
+  qf_save_to: "agent_qfunction"
 
 taxi_env:
   episode_n: 1000
   tr_len: 1000
   gamma: 0.99
   alpha: 0.4
-  avg_wsize: 100
+  rewards_ma_period: 100
